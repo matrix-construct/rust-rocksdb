@@ -1283,6 +1283,53 @@ impl<T: ThreadMode, D: DBInner> DBCommon<T, D> {
         }
     }
 
+    /// Return the values associated with the given keys and the specified
+    /// column families where internally the read requests are processed in
+    /// batch if block-based table SST format is used. It is a more optimized
+    /// version of multi_get_cf_opt, and allows for multiple column families.
+    pub fn batched_multi_get_multi_cf_opt<'a, C, K, I>(
+        &self,
+        keys: I,
+        sorted_input: bool,
+        readopts: &ReadOptions,
+    ) -> impl Iterator<Item = Result<Option<DBPinnableSlice>, Error>>
+    where
+        K: AsRef<[u8]> + 'a + ?Sized,
+        I: IntoIterator<Item = (&'a C, &'a K)>,
+        C: AsColumnFamilyRef + 'a,
+    {
+        let (ptr_cfs, (ptr_keys, keys_sizes)): (Vec<_>, (Vec<_>, Vec<_>)) = keys
+            .into_iter()
+            .map(|(cf, k)| (cf.inner(), k.as_ref()))
+            .map(|(cf, k)| (cf, ((k.as_ptr() as *const c_char), k.len())))
+            .unzip();
+
+        let mut pinned_values = vec![ptr::null_mut(); ptr_keys.len()];
+        let mut errors = vec![ptr::null_mut(); ptr_keys.len()];
+        unsafe {
+            ffi::rocksdb_batched_multi_get_multi_cf(
+                self.inner.inner(),
+                readopts.inner,
+                ptr_keys.len(),
+                ptr_cfs.as_ptr().cast_mut(),
+                ptr_keys.as_ptr(),
+                keys_sizes.as_ptr(),
+                pinned_values.as_mut_ptr(),
+                errors.as_mut_ptr(),
+                sorted_input,
+            );
+        }
+        pinned_values
+            .into_iter()
+            .zip(errors)
+            .map(|(v, e)| match (v, e) {
+                _ if !e.is_null() => Err(Error::new(crate::ffi_util::error_message(e))),
+                _ if !v.is_null() => Ok(Some(unsafe { DBPinnableSlice::from_c(v) })),
+                _ if v.is_null() => Ok(None),
+                _ => unreachable!(),
+            })
+    }
+
     /// Returns `false` if the given key definitely doesn't exist in the database, otherwise returns
     /// `true`. This function uses default `ReadOptions`.
     pub fn key_may_exist<K: AsRef<[u8]>>(&self, key: K) -> bool {
