@@ -2157,6 +2157,63 @@ impl<T: ThreadMode, D: DBInner> DBCommon<T, D> {
         Err(convert_rocksdb_error(error))
     }
 
+    /// Return the values associated with the given keys and the specified
+    /// column families where internally the read requests are processed in
+    /// batch if block-based table SST format is used. It is a more optimized
+    /// version of multi_get_cf_opt, and allows for multiple column families.
+    pub fn batched_multi_get_multi_cf_opt<'a, C, K, I>(
+        &self,
+        keys: I,
+        sorted_input: bool,
+        readopts: &ReadOptions,
+    ) -> Vec<Result<Option<DBPinnableSlice<'_>>, Error>>
+    where
+        K: AsRef<[u8]> + 'a + ?Sized,
+        I: IntoIterator<Item = (&'a C, &'a K)>,
+        C: AsColumnFamilyRef + 'a,
+    {
+        let (ptr_cfs, (ptr_keys, keys_sizes)): (Vec<_>, (Vec<_>, Vec<_>)) = keys
+            .into_iter()
+            .map(|(cf, k)| (cf.inner(), k.as_ref()))
+            .map(|(cf, k)| (cf, ((k.as_ptr() as *const c_char), k.len())))
+            .unzip();
+
+        let mut pinned_values = vec![ptr::null_mut(); ptr_keys.len()];
+        let mut errors = vec![ptr::null_mut(); ptr_keys.len()];
+        unsafe {
+            ffi::rocksdb_batched_multi_get_multi_cf(
+                self.inner.inner(),
+                readopts.inner,
+                ptr_keys.len(),
+                ptr_cfs.as_ptr().cast_mut(),
+                ptr_keys.as_ptr(),
+                keys_sizes.as_ptr(),
+                pinned_values.as_mut_ptr(),
+                errors.as_mut_ptr(),
+                sorted_input,
+            );
+        }
+        // Materialize eagerly: the raw pinnable slices and error strings must
+        // all be owned by RAII wrappers (or destroyed) before this returns, so
+        // a short-circuiting caller cannot leak the unconsumed tail.
+        pinned_values
+            .into_iter()
+            .zip(errors)
+            .map(|(v, e)| {
+                if !e.is_null() {
+                    if !v.is_null() {
+                        unsafe { ffi::rocksdb_pinnableslice_destroy(v) };
+                    }
+                    Err(convert_rocksdb_error(e))
+                } else if v.is_null() {
+                    Ok(None)
+                } else {
+                    Ok(Some(unsafe { DBPinnableSlice::from_c(v) }))
+                }
+            })
+            .collect()
+    }
+
     /// Returns `false` if the given key definitely doesn't exist in the database, otherwise returns
     /// `true`. This function uses default `ReadOptions`.
     pub fn key_may_exist<K: AsRef<[u8]>>(&self, key: K) -> bool {
