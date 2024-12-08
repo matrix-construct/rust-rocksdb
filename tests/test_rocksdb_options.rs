@@ -880,6 +880,20 @@ fn test_set_memtable_avg_op_scan_flush_trigger() {
 }
 
 #[test]
+fn test_set_delta_encoding() {
+    let path = DBPath::new("_set_delta_encoding");
+
+    let mut opts = Options::default();
+    opts.create_if_missing(true);
+
+    let mut block_opts = BlockBasedOptions::default();
+    block_opts.set_use_delta_encoding(true);
+    opts.set_block_based_table_factory(&block_opts);
+
+    let _db = DB::open(&opts, &path).unwrap();
+}
+
+#[test]
 fn jemalloc_init() {
     let path = DBPath::new("_jemalloc_init");
     {
