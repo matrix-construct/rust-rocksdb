@@ -506,3 +506,17 @@ fn test_set_write_dbid_to_manifest() {
         String::from_utf8_lossy(&db_checkpoint_id)
     );
 }
+
+#[test]
+fn test_set_delta_encoding() {
+    let path = DBPath::new("_set_delta_encoding");
+
+    let mut opts = Options::default();
+    opts.create_if_missing(true);
+
+    let mut block_opts = BlockBasedOptions::default();
+    block_opts.set_use_delta_encoding(true);
+    opts.set_block_based_table_factory(&block_opts);
+
+    let _db = DB::open(&opts, &path).unwrap();
+}
