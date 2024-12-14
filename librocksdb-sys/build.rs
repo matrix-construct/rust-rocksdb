@@ -175,6 +175,12 @@ fn build_rocksdb() {
         }
     }
 
+    if let Ok(march) = env::var("ROCKSDB_MARCH") {
+        if !march.is_empty() {
+            config.flag_if_supported(format!("-march={march}"));
+        }
+    }
+
     if target.contains("apple-ios") {
         config.define("OS_MACOSX", None);
 
