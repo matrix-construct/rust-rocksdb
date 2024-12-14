@@ -502,6 +502,12 @@ mod vendor {
     /// Pass `-Ctarget-cpu=...` through to the C/C++ compiler as `-march=` /
     /// `-mcpu=` so the C++ side benefits from the same CPU baseline.
     fn apply_target_cpu(cfg: &mut cc::Build, target: &Target) {
+        // Explicit ROCKSDB_MARCH override, independent of -Ctarget-cpu.
+        if let Ok(march) = env::var("ROCKSDB_MARCH") {
+            if !march.is_empty() {
+                cfg.flag_if_supported(format!("-march={march}"));
+            }
+        }
         let Some(cpu) = &target.rust_target_cpu else {
             return;
         };
