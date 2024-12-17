@@ -141,6 +141,18 @@ impl<'a, D: DBAccess> DBRawIteratorWithThreadMode<'a, D> {
         Ok(())
     }
 
+    /// If supported, the DB state that the iterator reads from is updated to
+    /// the latest state. The iterator will be invalidated after the call.
+    /// Regardless of whether the iterator was created/refreshed previously
+    /// with or without a snapshot, the iterator will be reading the
+    /// latest DB state after this call.
+    pub fn refresh(&mut self) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(ffi::rocksdb_iter_refresh(self.inner.as_ptr()));
+        }
+        Ok(())
+    }
+
     /// Seeks to the first key in the database.
     ///
     /// # Examples
