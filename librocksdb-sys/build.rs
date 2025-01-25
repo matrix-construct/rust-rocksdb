@@ -166,7 +166,7 @@ fn build_rocksdb() {
 
     if let Ok(march) = env::var("ROCKSDB_MARCH") {
         if !march.is_empty() {
-            config.flag_if_supported(format!("-march={march}"));
+            config.flag_if_supported(&format!("-march={march}"));
         }
     }
 
@@ -318,7 +318,7 @@ fn build_rocksdb() {
         config.flag("-EHsc");
         config.flag("-std:c++17");
     } else {
-        config.flag(cxx_standard());
+        config.flag(&cxx_standard());
         // matches the flags in CMakeLists.txt from rocksdb
         config.flag("-Wsign-compare");
         config.flag("-Wshadow");
