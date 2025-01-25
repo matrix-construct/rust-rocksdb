@@ -2008,6 +2008,31 @@ impl<T: ThreadMode, D: DBInner> DBCommon<T, D> {
         Ok(())
     }
 
+    /// Enable or disable manual compaction.
+    ///
+    /// false:
+    /// After this function call, CompactRange() or CompactFiles() will not
+    /// run compactions and fail. Calling this function will tell outstanding
+    /// manual compactions to abort and will wait for them to finish or abort
+    /// before returning.
+    ///
+    /// true:
+    /// Re-enable CompactRange() and ComapctFiles() that are disabled by
+    /// DisableManualCompaction(). This function must be called as many times
+    /// as DisableManualCompaction() has been called in order to re-enable
+    /// manual compactions, and must not be called more times than
+    /// DisableManualCompaction() has been called.
+    #[inline]
+    pub fn enable_manual_compaction(&self, enable: bool) {
+        unsafe {
+            if enable {
+                ffi::rocksdb_enable_manual_compaction(self.inner.inner())
+            } else {
+                ffi::rocksdb_disable_manual_compaction(self.inner.inner())
+            }
+        }
+    }
+
     pub fn set_options(&self, opts: &[(&str, &str)]) -> Result<(), Error> {
         let copts = convert_options(opts)?;
         let cnames: Vec<*const c_char> = copts.iter().map(|opt| opt.0.as_ptr()).collect();
