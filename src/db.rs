@@ -2033,6 +2033,37 @@ impl<T: ThreadMode, D: DBInner> DBCommon<T, D> {
         }
     }
 
+    /// Enable or disable deleting obsolete files.
+    ///
+    /// false:
+    /// Suspend deleting obsolete files. Compactions will continue to occur,
+    /// but no obsolete files will be deleted. To resume file deletions, each
+    /// call to DisableFileDeletions() must be matched by a subsequent call to
+    /// EnableFileDeletions(). For more details, see EnableFileDeletions().
+    ///
+    /// true:
+    /// Resume deleting obsolete files, following up on `DisableFileDeletions()`.
+    /// File deletions disabling and enabling is not controlled by a binary flag,
+    /// instead it's represented as a counter to allow different callers to
+    /// independently disable file deletion. Disabling file deletion can be
+    /// critical for operations like making a backup. So the counter implementation
+    /// makes the file deletion disabled as long as there is one caller requesting
+    /// so, and only when every caller agrees to re-enable file deletion, it will
+    /// be enabled. Two threads can call this method concurrently without
+    /// synchronization -- i.e., file deletions will be enabled only after both
+    /// threads call EnableFileDeletions()
+    #[inline]
+    pub fn enable_deletions(&self, enable: bool) -> Result<(), Error> {
+        unsafe {
+            if enable {
+                ffi_try!(ffi::rocksdb_enable_file_deletions(self.inner.inner()));
+            } else {
+                ffi_try!(ffi::rocksdb_disable_file_deletions(self.inner.inner()));
+            }
+        }
+        Ok(())
+    }
+
     pub fn set_options(&self, opts: &[(&str, &str)]) -> Result<(), Error> {
         let copts = convert_options(opts)?;
         let cnames: Vec<*const c_char> = copts.iter().map(|opt| opt.0.as_ptr()).collect();
