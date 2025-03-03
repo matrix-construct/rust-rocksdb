@@ -19,7 +19,7 @@ exclude = [".gitignore", ".travis.yml", "deploy.sh", "test/**/*"]
 members = ["librocksdb-sys"]
 
 [features]
-default = ["snappy", "lz4", "zstd", "zlib", "bzip2"]
+default = ["lz4", "zstd", "zlib", "bzip2"]
 jemalloc = ["rust-librocksdb-sys/jemalloc"]
 io-uring = ["rust-librocksdb-sys/io-uring"]
 valgrind = []
