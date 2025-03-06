@@ -2,7 +2,7 @@ use std::path::Path;
 use std::{env, fs, path::PathBuf, process::Command};
 
 #[cfg(target_os = "linux")]
-use libc::{getauxval, AT_HWCAP};
+use libc::{AT_HWCAP, getauxval};
 
 // On these platforms jemalloc-sys will use a prefixed jemalloc which cannot be linked together
 // with RocksDB.
@@ -180,7 +180,9 @@ fn build_rocksdb() {
         config.define("ROCKSDB_PLATFORM_POSIX", None);
         config.define("ROCKSDB_LIB_IO_POSIX", None);
 
-        env::set_var("IPHONEOS_DEPLOYMENT_TARGET", "12.0");
+        unsafe {
+            env::set_var("IPHONEOS_DEPLOYMENT_TARGET", "12.0");
+        }
     } else if target.contains("darwin") {
         config.define("OS_MACOSX", None);
         config.define("ROCKSDB_PLATFORM_POSIX", None);

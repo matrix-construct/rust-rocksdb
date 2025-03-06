@@ -1,9 +1,9 @@
 [package]
 name = "rust-rocksdb"
 description = "Rust wrapper for Facebook's RocksDB embeddable database"
-version = "0.36.0"
-edition = "2021"
-rust-version = "1.79.0"
+version = "0.37.0"
+edition = "2024"
+rust-version = "1.85.0"
 authors = [
     "Tyler Neely <t@jujit.su>",
     "David Greenberg <dsg123456789@gmail.com>",
@@ -19,7 +19,7 @@ exclude = [".gitignore", ".travis.yml", "deploy.sh", "test/**/*"]
 members = ["librocksdb-sys"]
 
 [features]
-default = ["lz4", "zstd", "zlib", "bzip2"]
+default = ["lz4", "zstd", "bzip2"]
 jemalloc = ["rust-librocksdb-sys/jemalloc"]
 io-uring = ["rust-librocksdb-sys/io-uring"]
 numa = ["rust-librocksdb-sys/numa"]
@@ -38,7 +38,7 @@ zstd-static-linking-only = ["rust-librocksdb-sys/zstd-static-linking-only"]
 
 [dependencies]
 libc = "0.2"
-rust-librocksdb-sys = { path = "librocksdb-sys", version = "0.32.0" }
+rust-librocksdb-sys = { path = "librocksdb-sys", version = "0.33.0" }
 serde = { version = "1", features = ["derive"], optional = true }
 
 [dev-dependencies]
