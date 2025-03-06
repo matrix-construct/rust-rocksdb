@@ -369,6 +369,7 @@ mod vendor {
         let layout = apply_target_os(&mut cfg, target);
         apply_lfs_defines(&mut cfg, target, layout);
         apply_io_uring(&mut cfg, target);
+        apply_numa(&mut cfg, target);
         apply_backtrace(&mut cfg, target);
 
         #[cfg(feature = "coroutines")]
@@ -771,6 +772,34 @@ mod vendor {
                     )
                 });
                 _cfg.define("ROCKSDB_IOURING_PRESENT", Some("1"));
+            }
+        }
+    }
+
+    fn apply_numa(_cfg: &mut cc::Build, _target: &Target) {
+        #[cfg(feature = "numa")]
+        {
+            if _target.os == "linux" {
+                pkg_config::probe_library("numa").unwrap_or_else(|e| {
+                    panic!(
+                        "the `numa` feature was requested but pkg-config probe for \
+                         `numa` failed: {e}\n\
+                         Hints:\n\
+                          - Debian/Ubuntu:  apt-get install libnuma-dev\n\
+                          - Fedora/RHEL:    dnf install numactl-devel\n\
+                          - Arch:           pacman -S numactl\n\
+                          - Alpine:         apk add numactl-dev\n\
+                          - or set PKG_CONFIG_PATH to a directory containing numa.pc\n\
+                          - when cross-compiling, also set PKG_CONFIG_ALLOW_CROSS=1\n\
+                            and point PKG_CONFIG_PATH at the target sysroot's pkgconfig dir."
+                    )
+                });
+                _cfg.define("NUMA", Some("1"));
+                _cfg.define("WITH_NUMA", Some("1"));
+                _cfg.define("ROCKSDB_NUMA_PRESENT", Some("1"));
+                if let Some(path) = env::var_os("DEP_NUMA_INCLUDE") {
+                    _cfg.include(path);
+                }
             }
         }
     }
