@@ -80,6 +80,7 @@ io-uring = []
 # `libglog.so` and `libgflags.so` because folly's build does not produce
 # static archives for those two.
 coroutines = []
+numa = []
 snappy = []
 lz4 = ["lz4-sys"]
 zstd = ["zstd-sys"]
