@@ -282,7 +282,8 @@ fn build_rocksdb() {
         }
     }
 
-    if cfg!(feature = "numa") {
+    #[cfg(feature = "numa")]
+    if target.contains("linux") {
         pkg_config::probe_library("numa")
             .expect("The numa feature was requested but the library is not available");
         config.define("NUMA", Some("1"));
