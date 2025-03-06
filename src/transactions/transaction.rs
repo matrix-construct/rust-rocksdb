@@ -16,9 +16,10 @@
 use std::{marker::PhantomData, ptr};
 
 use crate::{
-    db::{convert_values, DBAccess},
-    ffi, AsColumnFamilyRef, DBIteratorWithThreadMode, DBPinnableSlice, DBRawIteratorWithThreadMode,
+    AsColumnFamilyRef, DBIteratorWithThreadMode, DBPinnableSlice, DBRawIteratorWithThreadMode,
     Direction, Error, IteratorMode, ReadOptions, SnapshotWithThreadMode, WriteBatchWithTransaction,
+    db::{DBAccess, convert_values},
+    ffi,
 };
 use libc::{c_char, c_void, size_t};
 

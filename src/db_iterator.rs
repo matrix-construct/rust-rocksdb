@@ -13,8 +13,9 @@
 // limitations under the License.
 
 use crate::{
-    db::{DBAccess, DB},
-    ffi, Error, ReadOptions, WriteBatch,
+    Error, ReadOptions, WriteBatch,
+    db::{DB, DBAccess},
+    ffi,
 };
 use libc::{c_char, c_uchar, size_t};
 use std::{marker::PhantomData, slice};

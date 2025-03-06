@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{ffi, AsColumnFamilyRef};
+use crate::{AsColumnFamilyRef, ffi};
 use libc::{c_char, c_void, size_t};
 use std::slice;
 

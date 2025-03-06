@@ -18,8 +18,8 @@ use std::{fs, io::Read as _};
 
 use rust_rocksdb::checkpoint::Checkpoint;
 use rust_rocksdb::{
-    BlockBasedOptions, BlockBasedPinningTier, Cache, DBCompactionPri, DBCompressionType,
-    DataBlockIndexType, Env, LruCacheOptions, Options, ReadOptions, DB,
+    BlockBasedOptions, BlockBasedPinningTier, Cache, DB, DBCompactionPri, DBCompressionType,
+    DataBlockIndexType, Env, LruCacheOptions, Options, ReadOptions,
 };
 use util::DBPath;
 

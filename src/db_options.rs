@@ -13,9 +13,9 @@
 // limitations under the License.
 
 use std::ffi::CStr;
-use std::panic::{catch_unwind, AssertUnwindSafe, RefUnwindSafe};
+use std::panic::{AssertUnwindSafe, RefUnwindSafe, catch_unwind};
 use std::path::Path;
-use std::ptr::{null_mut, NonNull};
+use std::ptr::{NonNull, null_mut};
 use std::slice;
 use std::sync::Arc;
 
@@ -24,6 +24,7 @@ use libc::{self, c_char, c_double, c_int, c_uchar, c_uint, c_void, size_t};
 use crate::column_family::ColumnFamilyTtl;
 use crate::statistics::{Histogram, HistogramData, StatsLevel};
 use crate::{
+    ColumnFamilyDescriptor, Error, SnapshotWithThreadMode,
     compaction_filter::{self, CompactionFilterCallback, CompactionFilterFn},
     compaction_filter_factory::{self, CompactionFilterFactory},
     comparator::{
@@ -32,13 +33,12 @@ use crate::{
     db::DBAccess,
     env::Env,
     ffi,
-    ffi_util::{from_cstr, to_cpath, CStrLike},
+    ffi_util::{CStrLike, from_cstr, to_cpath},
     merge_operator::{
-        self, full_merge_callback, partial_merge_callback, MergeFn, MergeOperatorCallback,
+        self, MergeFn, MergeOperatorCallback, full_merge_callback, partial_merge_callback,
     },
     slice_transform::SliceTransform,
     statistics::Ticker,
-    ColumnFamilyDescriptor, Error, SnapshotWithThreadMode,
 };
 
 pub(crate) struct WriteBufferManagerWrapper {
@@ -3801,7 +3801,6 @@ impl Options {
             ffi::rocksdb_options_set_compaction_pri(self.inner, pri as c_int);
         }
     }
-
 
     /// If true, the log numbers and sizes of the synced WALs are tracked
     /// in MANIFEST. During DB recovery, if a synced WAL is missing

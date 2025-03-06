@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-use crate::{ffi, Error};
+use crate::{Error, ffi};
 use libc::{self, c_char, c_void, size_t};
 use std::ffi::{CStr, CString};
 use std::path::Path;
