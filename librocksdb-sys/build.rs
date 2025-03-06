@@ -293,6 +293,19 @@ fn build_rocksdb() {
         }
     }
 
+    #[cfg(feature = "numa")]
+    if target.contains("linux") {
+        pkg_config::probe_library("numa")
+            .expect("The numa feature was requested but the library is not available");
+        config.define("NUMA", Some("1"));
+        config.define("WITH_NUMA", Some("1"));
+        config.define("ROCKSDB_NUMA_PRESENT", Some("1"));
+
+        if let Some(path) = env::var_os("DEP_NUMA_INCLUDE") {
+            config.include(path);
+        }
+    }
+
     #[cfg(feature = "io-uring")]
     if target.contains("linux") {
         pkg_config::probe_library("liburing")
