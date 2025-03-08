@@ -46,7 +46,7 @@ zstd-static-linking-only = []
 [dependencies]
 libc = "0.2"
 tikv-jemalloc-sys = { git = "https://github.com/girlbossceo/jemallocator", rev = "82af58d6a13ddd5dcdc7d4e91eae3b63292995b8", features = [ "unprefixed_malloc_on_supported_platforms" ], optional = true }
-lz4-sys = { version = "1.10", optional = true }
+lz4-sys = { version = "1.11", optional = true }
 zstd-sys = { version = "2.0", features = [
     "zdict_builder",
     "experimental",
@@ -59,8 +59,8 @@ const-str = "0.6"
 uuid = { version = "1", features = ["v4"] }
 
 [build-dependencies]
-cc = { version = "1.0", features = ["parallel"] }
-bindgen = { version = "0.69", default-features = false, features = ["runtime"] }
+cc = { version = "1.2", features = ["parallel"] }
+bindgen = { version = "0.71", default-features = false, features = ["runtime"] }
 glob = "0.3"
 pkg-config = { version = "0.3", optional = true }
 libc = "0.2"
