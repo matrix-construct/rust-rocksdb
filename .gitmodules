@@ -1,9 +1,5 @@
-#[submodule "rocksdb_sys/snappy"]
-#	path = librocksdb-sys/snappy
-#	url = https://github.com/google/snappy.git
-#	shallow = true
 [submodule "rocksdb_sys/rocksdb"]
 	path = librocksdb-sys/rocksdb
-	url = https://github.com/girlbossceo/rocksdb.git
-	branch = v9.11.1
+	url = https://github.com/matrix-construct/rocksdb.git
+	branch = conduwuit-changes
 	shallow = true
