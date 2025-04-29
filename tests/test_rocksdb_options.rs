@@ -508,6 +508,17 @@ fn test_set_write_dbid_to_manifest() {
 }
 
 #[test]
+fn test_set_memtable_op_scan_flush_trigger() {
+    let path = DBPath::new("_set_memtable_op_scan_flush_trigger");
+    {
+        let mut opts = Options::default();
+        opts.create_if_missing(true);
+        opts.set_memtable_op_scan_flush_trigger(5);
+        let _db = DB::open(&opts, &path).unwrap();
+    }
+}
+
+#[test]
 fn test_set_delta_encoding() {
     let path = DBPath::new("_set_delta_encoding");
 
