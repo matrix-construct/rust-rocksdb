@@ -1,5 +1,94 @@
 # Changelog
 
+## 0.41.0 (2025-04-29)
+
+* doc db_iterator.rs: Minor edits to rustdoc; more links (evanj)
+* upgrade to RocksDB 10.2.1 (zaidoon1)
+* feat: expose set_memtable_op_scan_flush_trigger (zaidoon1)
+
+## 0.40.0 (2025-04-19)
+
+* upgrade to RocksDB 10.1.3 (zaidoon1)
+
+## 0.39.0 (2025-04-01)
+
+* upgrade to RocksDB 10.0.1 (zaidoon1)
+* bump snappy to 1.2.2 (zaidoon1)
+* bump lz4 to v1.11 (zaidoon1)
+
+## 0.38.0 (2025-03-30)
+
+* upgrade to RocksDB 9.11.2 (zaidoon1)
+
+## 0.37.0 (2025-03-07)
+
+* Support builds on AIX (mustartt)
+* WriteBatch: add support for WriteBatch::put_log_data (lucasvuillier)
+* Fix C++ linking (brndnmtthws)
+* add ROCKSDB_AUXV_GETAUXVAL_PRESENT for supported Linux systems (zaidoon1)
+* Add backup options and db options sync/fsync getters/setters (timvisee)
+* upgrade to RocksDB 9.11.1 (zaidoon1)
+* bump msrv to 1.81.0 (zaidoon1)
+
+## 0.36.0 (2025-01-03)
+
+* Fix some typos (DeVikingMark)
+* chore: fix multiple typos of different importance (crStiv)
+* feat: allow to set per cf ttl (0xdeafbeef)
+* Fix some typos (teenager-ETH)
+* Fix future clippy warnings (niklasf)
+* upgrade to RocksDB 9.10.0 (zaidoon1)
+
+## 0.35.0 (2024-12-17)
+
+* DB: Implement get_db_identity using rocksdb_get_db_identity (evanj)
+* Add lto feature (0xdeafbeef)
+* Options: Add set_track_and_verify_wals_in_manifest (evanj)
+* upgrade to RocksDB 9.9.3 (zaidoon1)
+* add set_use_delta_encoding() to Options (jevolk)
+
+## 0.34.0 (2024-12-04)
+
+* Fix two tests that want to write to the current working directory (mr-c)
+* add missing supported bsd oses (drizzt)
+* Fix column family creation race. (stuhood)
+* Allow using static bindgen feature (Congyuwang)
+* tests: use tempfile instead of the current working directory (mr-c)
+* implement with_capacity for WriteBatch (0xdeafbeef)
+* ci: make most directories read-only before running the tests (mr-c)
+* More temp directories for tests (mr-c)
+* fix(build): add ROCKSDB_SCHED_GETCPU_PRESENT for Linux build config (popcnt1)
+* upgrade to RocksDB 9.8.4 (zaidoon1)
+
+## 0.33.0 (2024-11-01)
+
+* upgrade to RocksDB 9.7.4 (zaidoon1)
+
+## 0.32.0 (2024-10-23)
+
+* Decrement refcount after registering info loggers (jevolk)
+* upgrade to RocksDB 9.7.3 (zaidoon1)
+
+## 0.31.0 (2024-10-16)
+
+* Expose LRU cache options (athre0z)
+* add Env::from_raw constructor (jgraettinger)
+* Fix unsoundness via impure AsRef (niklasf)
+* Allow setting logging callback (jevolk)
+* upgrade to RocksDB 9.7.2 (zaidoon1)
+
+## 0.30.0 (2024-09-06)
+
+* Improve statistics by auto gen enum Ticker & enum Histogram (rockeet)
+* upgrade to RocksDB 9.6.1 (zaidoon1)
+
+## 0.29.0 (2024-08-21)
+
+* Implement Sync for BoundColumnFamily (jhpratt)
+* use the provided system rocksdb prebuilt on freebsd (girlbossceo)
+* TransactionDB support in MemoryUsageBuilder (4TT1L4)
+* upgrade to RocksDB 9.5.2 (zaidoon1)
+
 ## 0.28.1 (2024-07-26)
 
 * allow unprefixed musl jemalloc targets (girlbossceo)
