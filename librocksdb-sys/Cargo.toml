@@ -1,6 +1,6 @@
 [package]
 name = "rust-librocksdb-sys"
-version = "0.33.0+9.11.1"
+version = "0.37.0+10.2.1"
 edition = "2021"
 rust-version = "1.85.0"
 authors = [
@@ -45,7 +45,7 @@ zstd-static-linking-only = []
 
 [dependencies]
 libc = "0.2"
-tikv-jemalloc-sys = { git = "https://github.com/matrix-construct/jemallocator", rev = "82af58d6a13ddd5dcdc7d4e91eae3b63292995b8", features = [ "unprefixed_malloc_on_supported_platforms", "background_threads_runtime_support" ], optional = true }
+tikv-jemalloc-sys = { git = "https://github.com/matrix-construct/jemallocator", rev = "03bed96afbbc898bef4d4f7d335c0519e3d1afad", features = [ "unprefixed_malloc_on_supported_platforms", "background_threads_runtime_support" ], optional = true }
 lz4-sys = { version = "1.11", optional = true }
 zstd-sys = { version = "2.0", features = [
     "zdict_builder",
