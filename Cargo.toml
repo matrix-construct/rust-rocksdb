@@ -33,7 +33,17 @@ rustdoc-args = ["--cfg", "docsrs"]
 features = ["serde1"]
 
 [features]
-default = ["snappy", "lz4", "zstd", "zlib", "bzip2", "bindgen-runtime"]
+default = [
+	"bindgen-runtime",
+	"bzip2",
+	"io-uring",
+	"jemalloc",
+	"lz4",
+	"multi-threaded-cf",
+	"serde1",
+	"zstd",
+	"zstd-static-linking-only",
+]
 jemalloc = ["rust-librocksdb-sys/jemalloc"]
 io-uring = ["rust-librocksdb-sys/io-uring"]
 # Build RocksDB with folly + C++20 coroutines. See `librocksdb-sys/Cargo.toml`
