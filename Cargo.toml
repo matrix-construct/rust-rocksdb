@@ -19,7 +19,17 @@ exclude = [".gitignore", ".travis.yml", "deploy.sh", "test/**/*"]
 members = ["librocksdb-sys"]
 
 [features]
-default = ["snappy", "lz4", "zstd", "zlib", "bzip2", "bindgen-runtime"]
+default = [
+	"bindgen-runtime",
+	"bzip2",
+	"io-uring",
+	"jemalloc",
+	"lz4",
+	"multi-threaded-cf",
+	"serde1",
+	"zstd",
+	"zstd-static-linking-only",
+]
 jemalloc = ["rust-librocksdb-sys/jemalloc"]
 io-uring = ["rust-librocksdb-sys/io-uring"]
 valgrind = []
@@ -41,9 +51,7 @@ lto = ["rust-librocksdb-sys/lto"]
 [dependencies]
 libc = "0.2"
 parking_lot = { version = "0.12" }
-rust-librocksdb-sys = { path = "librocksdb-sys", version = "0.40.0", default-features = false, features = [
-    "static",
-] }
+rust-librocksdb-sys = { path = "librocksdb-sys", version = "0.40.0" }
 serde = { version = "1", features = ["derive"], optional = true }
 
 [dev-dependencies]
