@@ -227,7 +227,7 @@ fn counting_merge_test() {
 
     let value_getter = |key| match db.get(key) {
         Ok(Some(value)) => ValueCounts::from_slice(&value)
-            .map_or_else(|| panic!("unable to create ValueCounts from bytes"), |v| v),
+            .unwrap_or_else(|| panic!("unable to create ValueCounts from bytes")),
         Ok(None) => panic!("value not present"),
         Err(e) => panic!("error reading value {e:?}"),
     };
