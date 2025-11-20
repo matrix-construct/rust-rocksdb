@@ -45,12 +45,15 @@ raw-ptr = []
 
 [dependencies]
 libc = "0.2"
+parking_lot = { version = "0.12" }
 rust-librocksdb-sys = { path = "librocksdb-sys", version = "0.46.0", default-features = false, features = [
     "static",
 ] }
 serde = { version = "1", features = ["derive"], optional = true }
-parking_lot = { version = "0.12" }
 
 [dev-dependencies]
-tempfile = "3"
+bincode = "1"
 pretty_assertions = "1"
+serde = { version = "1", features = ["derive"] }
+tempfile = "3"
+trybuild = "1"
