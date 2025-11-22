@@ -444,15 +444,10 @@ mod vendor {
         }
 
         // LTO: gated on the `lto` feature. RocksDB's Makefile only
-        // supports clang-LTO; bail if the user's CC isn't clang.
-        if cfg!(feature = "lto") {
+        // supports clang-LTO, so silently skip `-flto` when the compiler
+        // isn't clang rather than failing the build.
+        if cfg!(feature = "lto") && cfg.get_compiler().is_like_clang() {
             cfg.flag("-flto");
-            if !cfg.get_compiler().is_like_clang() {
-                panic!(
-                    "the `lto` feature requires Clang; set \
-                     `CC=/usr/bin/clang CXX=/usr/bin/clang++` or disable the feature"
-                );
-            }
         }
 
         cfg
