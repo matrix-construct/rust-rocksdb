@@ -307,6 +307,18 @@ fn build_rocksdb() {
         pkg_config::probe_library("liburing")
             .expect("The io-uring feature was requested but the library is not available");
         config.define("ROCKSDB_IOURING_PRESENT", Some("1"));
+
+        let mode = if cfg!(feature = "static") {
+            "=static"
+        } else {
+            ""
+        };
+        if cfg!(feature = "static") {
+            // centos uses its /usr/lib64 search path but liburing.a is installed
+            // by dnf oddly in /usr/lib unlike other installed archives.
+            println!("cargo:rustc-link-search=native=/usr/lib");
+        }
+        println!("cargo:rustc-link-lib{mode}=uring");
     }
 
     if &target != "armv7-linux-androideabi"
