@@ -931,6 +931,14 @@ mod vendor {
                     )
                 });
                 _cfg.define("ROCKSDB_IOURING_PRESENT", Some("1"));
+
+                let mode = if cfg!(feature = "static") { "=static" } else { "" };
+                if cfg!(feature = "static") {
+                    // centos uses its /usr/lib64 search path but liburing.a is installed
+                    // by dnf oddly in /usr/lib unlike other installed archives.
+                    println!("cargo:rustc-link-search=native=/usr/lib");
+                }
+                println!("cargo:rustc-link-lib{mode}=uring");
             }
         }
     }
