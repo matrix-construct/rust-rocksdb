@@ -29,7 +29,7 @@ exclude = [
 
 [features]
 default = ["bindgen-runtime", "static"]
-jemalloc = ["tikv-jemalloc-sys"]
+jemalloc = ["jevmalloc-sys"]
 static = ["libz-sys?/static", "bzip2-sys?/static"]
 bindgen-runtime = ["bindgen/runtime"]
 bindgen-static = ["bindgen/static"]
@@ -51,10 +51,7 @@ bzip2-sys = { version = "0.1", default-features = false, optional = true }
 libc = "0.2"
 libz-sys = { version = "1.1", default-features = false, optional = true }
 lz4-sys = { version = "1.11", optional = true }
-tikv-jemalloc-sys = { git = "https://github.com/matrix-construct/jemallocator", rev = "03bed96afbbc898bef4d4f7d335c0519e3d1afad", features = [
-    "unprefixed_malloc_on_supported_platforms",
-    "background_threads_runtime_support",
-], optional = true }
+jevmalloc-sys = { git = "https://github.com/matrix-construct/jevmalloc", rev = "29fde02533ee2c6a5e9b87095324e6f7a5d43738", optional = true }
 zstd-sys = { version = "2.0", features = [
     "zdict_builder",
     "experimental",

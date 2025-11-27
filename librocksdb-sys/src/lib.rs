@@ -25,7 +25,7 @@ extern crate libz_sys;
 #[cfg(feature = "lz4")]
 extern crate lz4_sys;
 #[cfg(feature = "jemalloc")]
-extern crate tikv_jemalloc_sys;
+extern crate jevmalloc_sys;
 #[cfg(feature = "zstd")]
 extern crate zstd_sys;
 
