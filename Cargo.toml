@@ -36,6 +36,7 @@ io-uring = ["rust-librocksdb-sys/io-uring"]
 # and the "Coroutines / async MultiGet" section of the README for build
 # prerequisites. Linux only.
 coroutines = ["rust-librocksdb-sys/coroutines"]
+io-uring-static = ["rust-librocksdb-sys/io-uring-static"]
 numa = ["rust-librocksdb-sys/numa"]
 valgrind = []
 snappy = ["rust-librocksdb-sys/snappy"]
