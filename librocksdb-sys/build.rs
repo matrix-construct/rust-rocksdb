@@ -916,24 +916,28 @@ mod vendor {
         #[cfg(feature = "io-uring")]
         {
             if _target.os == "linux" {
-                pkg_config::probe_library("liburing").unwrap_or_else(|e| {
-                    panic!(
-                        "the `io-uring` feature was requested but pkg-config probe for \
-                         `liburing` failed: {e}\n\
-                         Hints:\n\
-                          - Debian/Ubuntu:  apt-get install liburing-dev\n\
-                          - Fedora/RHEL:    dnf install liburing-devel\n\
-                          - Arch:           pacman -S liburing\n\
-                          - Alpine:         apk add liburing-dev\n\
-                          - or set PKG_CONFIG_PATH to a directory containing liburing.pc\n\
-                          - when cross-compiling, also set PKG_CONFIG_ALLOW_CROSS=1\n\
-                            and point PKG_CONFIG_PATH at the target sysroot's pkgconfig dir."
-                    )
-                });
+                // probe_library() only looks for shared objects, so it's
+                // misleading when statically linking liburing.
+                if cfg!(not(feature = "io-uring-static")) {
+                    pkg_config::probe_library("liburing").unwrap_or_else(|e| {
+                        panic!(
+                            "the `io-uring` feature was requested but pkg-config probe for \
+                             `liburing` failed: {e}\n\
+                             Hints:\n\
+                              - Debian/Ubuntu:  apt-get install liburing-dev\n\
+                              - Fedora/RHEL:    dnf install liburing-devel\n\
+                              - Arch:           pacman -S liburing\n\
+                              - Alpine:         apk add liburing-dev\n\
+                              - or set PKG_CONFIG_PATH to a directory containing liburing.pc\n\
+                              - when cross-compiling, also set PKG_CONFIG_ALLOW_CROSS=1\n\
+                                and point PKG_CONFIG_PATH at the target sysroot's pkgconfig dir."
+                        )
+                    });
+                }
                 _cfg.define("ROCKSDB_IOURING_PRESENT", Some("1"));
 
-                let mode = if cfg!(feature = "static") { "=static" } else { "" };
-                if cfg!(feature = "static") {
+                let mode = if cfg!(feature = "io-uring-static") { "=static" } else { "" };
+                if cfg!(feature = "io-uring-static") {
                     // centos uses its /usr/lib64 search path but liburing.a is installed
                     // by dnf oddly in /usr/lib unlike other installed archives.
                     println!("cargo:rustc-link-search=native=/usr/lib");
