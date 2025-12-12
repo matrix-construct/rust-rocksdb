@@ -32,6 +32,7 @@ default = [
 ]
 jemalloc = ["rust-librocksdb-sys/jemalloc"]
 io-uring = ["rust-librocksdb-sys/io-uring"]
+io-uring-static = ["rust-librocksdb-sys/io-uring-static"]
 numa = ["rust-librocksdb-sys/numa"]
 valgrind = []
 snappy = ["rust-librocksdb-sys/snappy"]

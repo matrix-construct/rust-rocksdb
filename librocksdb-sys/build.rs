@@ -304,16 +304,22 @@ fn build_rocksdb() {
 
     #[cfg(feature = "io-uring")]
     if target.contains("linux") {
-        pkg_config::probe_library("liburing")
-            .expect("The io-uring feature was requested but the library is not available");
+        // probe_library() only looks for shared objects, so this is misleading when statically
+        // linking
+        if cfg!(not(feature = "io-uring-static")) {
+            pkg_config::probe_library("liburing")
+                .expect("The io-uring feature was requested but the library is not available");
+        }
+
         config.define("ROCKSDB_IOURING_PRESENT", Some("1"));
 
-        let mode = if cfg!(feature = "static") {
+        let mode = if cfg!(feature = "io-uring-static") {
             "=static"
         } else {
             ""
         };
-        if cfg!(feature = "static") {
+
+        if cfg!(feature = "io-uring-static") {
             // centos uses its /usr/lib64 search path but liburing.a is installed
             // by dnf oddly in /usr/lib unlike other installed archives.
             println!("cargo:rustc-link-search=native=/usr/lib");
