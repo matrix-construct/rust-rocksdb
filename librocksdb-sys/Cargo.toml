@@ -52,7 +52,7 @@ bzip2-sys = { version = "0.1", default-features = false, optional = true }
 libc = "0.2"
 libz-sys = { version = "1.1", default-features = false, optional = true }
 lz4-sys = { version = "1.11", optional = true }
-jevmalloc-sys = { git = "https://github.com/matrix-construct/jevmalloc", rev = "29fde02533ee2c6a5e9b87095324e6f7a5d43738", optional = true }
+jevmalloc-sys = { git = "https://github.com/matrix-construct/jevmalloc", rev = "93795449913f65ab533b7fa482333eef63fc3ae0", optional = true }
 zstd-sys = { version = "2.0", features = [
     "zdict_builder",
     "experimental",
