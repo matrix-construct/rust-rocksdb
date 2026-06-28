@@ -24,10 +24,14 @@ use std::path::{Path, PathBuf};
 // Constants
 // =========================================================================
 
-/// On these platforms `jemalloc-sys` uses a prefixed jemalloc that cannot be
-/// linked together with RocksDB's own usage of jemalloc symbols.
-/// See <https://github.com/tikv/jemallocator/blob/f7adfca5aff272b43fd3ad896252b57fbbd9c72a/jemalloc-sys/src/env.rs#L24>.
-const NO_JEMALLOC_TARGETS: &[&str] = &["android", "dragonfly", "darwin"];
+/// Targets that must not compile RocksDB against jemalloc. On android,
+/// darwin, and dragonfly, `jemalloc-sys` uses a prefixed jemalloc that cannot
+/// be linked together with RocksDB's own usage of jemalloc symbols
+/// (see <https://github.com/tikv/jemallocator/blob/f7adfca5aff272b43fd3ad896252b57fbbd9c72a/jemalloc-sys/src/env.rs#L24>).
+/// On freebsd, `port/jemalloc_helper.h` does not compile against the base
+/// system `<malloc_np.h>`, which omits the `JEMALLOC_ATTR` macro its
+/// weak-symbol declarations require.
+const NO_JEMALLOC_TARGETS: &[&str] = &["android", "dragonfly", "darwin", "freebsd"];
 
 /// Default C++ standard used to build RocksDB. Can be overridden with
 /// `ROCKSDB_CXX_STD`.
@@ -122,21 +126,9 @@ enum Backend {
 impl Backend {
     /// Decide the backend and emit any needed link directives for the
     /// system path. Vendored compilation is deferred to [`vendor::build`].
-    fn resolve(target: &Target) -> Self {
-        // Highest priority: explicit "force compile" override. FreeBSD
-        // can't build RocksDB from these submodule sources, so the
-        // combination is rejected up front rather than failing midway
-        // through a long C++ compile.
+    fn resolve() -> Self {
+        // Highest priority: explicit "force compile" override.
         if env_truthy("ROCKSDB_COMPILE") {
-            if target.os == "freebsd" {
-                panic!(
-                    "ROCKSDB_COMPILE=1 is not supported on FreeBSD: the \
-                     bundled RocksDB sources don't build on FreeBSD. \
-                     Unset ROCKSDB_COMPILE and let the build script link \
-                     against the system RocksDB (install via `pkg install \
-                     rocksdb`)."
-                );
-            }
             return Backend::Vendored {
                 include: vendored_include(),
             };
@@ -147,19 +139,16 @@ impl Backend {
             return system::probe_pkg_config();
         }
 
-        // Explicit lib-dir override.
+        // Explicit lib-dir override. On FreeBSD the conventional way to link
+        // the system RocksDB is `ROCKSDB_LIB_DIR=/usr/local/lib` together
+        // with `ROCKSDB_INCLUDE_DIR=/usr/local/include`.
         if env::var_os("ROCKSDB_LIB_DIR").is_some() {
             return system::from_lib_dir_env();
         }
 
-        // FreeBSD historically can't build RocksDB from these submodule
-        // sources (see PR #908). Fall through to the system library at the
-        // platform's conventional location.
-        if target.os == "freebsd" {
-            return system::from_freebsd_defaults();
-        }
-
-        // Default: build vendored.
+        // Default: build the vendored sources. FreeBSD builds them too, with
+        // RocksDB's internal jemalloc allocator disabled (see
+        // NO_JEMALLOC_TARGETS).
         Backend::Vendored {
             include: vendored_include(),
         }
@@ -232,7 +221,7 @@ fn main() {
     #[cfg(feature = "coroutines")]
     coroutines::validate_target(&target);
 
-    let backend = Backend::resolve(&target);
+    let backend = Backend::resolve();
 
     // Re-run build.rs if the local C-API extensions change. The
     // extensions are a small handful of files outside the submodule
@@ -824,8 +813,7 @@ mod vendor {
     ///   - Android: bionic only added `<execinfo.h>` in API 33; older API
     ///     levels would fail to compile.
     ///   - Windows / MSVC: no equivalent; would need DbgHelp instead.
-    ///   - BSDs: would need libexecinfo from ports. We don't build the
-    ///     vendored sources on FreeBSD anyway.
+    ///   - BSDs: would need libexecinfo from ports, which we can't assume.
     fn apply_backtrace(cfg: &mut cc::Build, target: &Target) {
         let supported = match target.os.as_str() {
             "linux" => target.env_abi != "musl",
@@ -916,20 +904,6 @@ mod system {
         Backend::System {
             includes: env_includes_override(),
         }
-    }
-
-    /// FreeBSD default: link `/usr/local/lib/librocksdb.{so,a}` and read
-    /// headers from `/usr/local/include`. Honors `ROCKSDB_INCLUDE_DIR`
-    /// if set; `ROCKSDB_LIB_DIR` is handled in [`Backend::resolve`] and
-    /// does not reach this function.
-    pub(super) fn from_freebsd_defaults() -> Backend {
-        emit_link_directives(Path::new("/usr/local/lib"));
-
-        let mut includes = env_includes_override();
-        if includes.is_empty() {
-            includes.push(PathBuf::from("/usr/local/include"));
-        }
-        Backend::System { includes }
     }
 
     /// Use `pkg-config` to find rocksdb. Honors the standard `pkg-config`
