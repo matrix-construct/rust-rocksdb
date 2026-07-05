@@ -5027,6 +5027,23 @@ impl FifoCompactOptions {
             ffi::rocksdb_fifo_compaction_options_set_max_table_files_size(self.inner, nbytes);
         }
     }
+
+    /// Allows compaction of smaller files into larger ones.
+    ///
+    /// Minimum files to compact follows `level0_file_num_compaction_trigger`
+    /// and compaction won't trigger if average compact bytes per del file is
+    /// larger than `write_buffer_size`. This is to protect large files from
+    /// being compacted again.
+    ///
+    /// Default: false
+    pub fn set_allow_compaction(&mut self, allow: bool) {
+        unsafe {
+            ffi::rocksdb_fifo_compaction_options_set_allow_compaction(
+                self.inner,
+                c_uchar::from(allow),
+            );
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
