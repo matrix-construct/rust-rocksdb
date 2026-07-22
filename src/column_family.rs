@@ -162,6 +162,13 @@ pub type ColumnFamilyRef<'a> = Arc<BoundColumnFamily<'a>>;
 /// (`&ColumnFamily` and `BoundColumnFamily`)
 pub trait AsColumnFamilyRef {
     fn inner(&self) -> *mut ffi::rocksdb_column_family_handle_t;
+
+    /// The integer id RocksDB assigns this column family (0 for "default").
+    /// Equals the `cf_id` delivered to `WriteBatchIteratorCf`.
+    fn id(&self) -> u32 {
+        // SAFETY: `inner()` is a live handle for the lifetime of `self`.
+        unsafe { ffi::rocksdb_column_family_handle_get_id(self.inner()) }
+    }
 }
 
 impl AsColumnFamilyRef for ColumnFamily {
