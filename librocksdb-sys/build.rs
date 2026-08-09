@@ -1753,6 +1753,21 @@ mod extensions {
             cfg.flag("-include").flag("cstdint");
         }
 
+        // Match the prebuilt library's RTTI setting. A USE_RTTI=0 build (the
+        // default) compiles `librocksdb` with `-fno-rtti`, so its C++ classes
+        // emit no typeinfo. Compiling the extension with RTTI on then leaves
+        // an undefined `typeinfo for rocksdb::Customizable` reference that
+        // cannot link against such a library. Drop RTTI to mirror the library
+        // unless the `rtti` or `coroutines` feature opts back in for a
+        // USE_RTTI=1 prebuilt.
+        if !cfg!(feature = "rtti") && !cfg!(feature = "coroutines") {
+            if target.is_msvc() {
+                cfg.flag_if_supported("/GR-");
+            } else {
+                cfg.flag_if_supported("-fno-rtti");
+            }
+        }
+
         apply_native_dev_defaults(&mut cfg);
         cfg.compile("rust_rocksdb_c_api_extensions");
     }
