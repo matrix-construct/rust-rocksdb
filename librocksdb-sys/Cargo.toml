@@ -98,7 +98,7 @@ valgrind = []
 
 [dependencies]
 libc = "0.2"
-jevmalloc-sys = { git = "https://github.com/matrix-construct/jevmalloc", rev = "faa391081abf35f6ff084c40104d2645be132dd7", optional = true }
+jevmalloc-sys = { git = "https://github.com/matrix-construct/jevmalloc", rev = "0d265a8f33ee7ad420ca7d3dee2812d2303098d1", optional = true }
 lz4-sys = { version = "1.11", optional = true }
 zstd-sys = { version = "2.0", default-features = false, features = [
     "legacy",
