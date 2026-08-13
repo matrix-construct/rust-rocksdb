@@ -362,7 +362,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 [[package]]
 name = "jevmalloc-sys"
 version = "0.0.0+5.3.1-2-gee054313a33bef077b946fe744adae423b1a1b4f"
-source = "git+https://github.com/matrix-construct/jevmalloc?rev=0d265a8f33ee7ad420ca7d3dee2812d2303098d1#0d265a8f33ee7ad420ca7d3dee2812d2303098d1"
+source = "git+https://github.com/matrix-construct/jevmalloc?rev=c119db0bcf130a49f4231f930031965d9345fa2c#c119db0bcf130a49f4231f930031965d9345fa2c"
 dependencies = [
  "cc",
  "libc",
