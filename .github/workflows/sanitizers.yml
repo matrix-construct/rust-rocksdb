@@ -1,52 +1,52 @@
 name: Sanitizers
 
-# UBSan and TSan run on every pull request. They rebuild RocksDB
-# instrumented, but at 14 and 10 minutes they finish inside the 25 minutes the
-# coroutines build already takes, so they cost no extra wall clock.
-#
-# Valgrind takes 25 minutes on its own and is the one tool here that overlaps
-# with a per-PR job, since AddressSanitizer already covers leaks and heap
-# corruption. What it uniquely catches is reads of uninitialised memory, so it
-# still runs nightly and on master. Put the `run-sanitizers` label on a pull
-# request to get it there too.
+# Sanitizers run when any trusted branch changes or a maintainer dispatches the
+# workflow. Pull request code does not execute in this public runner-enabled
+# repository.
 on:
   push:
-    branches: [master]
-  schedule:
-    - cron: "0 3 * * *" # 3 AM UTC
+    branches:
+      - "**"
   workflow_dispatch:
-  pull_request:
-    types: [opened, synchronize, reopened, labeled]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
+  SANITIZER_FEATURES: bindgen-runtime,bzip2,io-uring,lz4,multi-threaded-cf,serde1,zstd,zstd-static-linking-only
 
 jobs:
   ubsan:
     name: UndefinedBehaviorSanitizer
-    # Adding the label starts a fresh run for Valgrind's benefit. Skip the two
-    # jobs that already ran when the commit was pushed.
-    if: github.event.action != 'labeled'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
+          persist-credentials: false
           submodules: recursive
 
       - name: Install rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
+          toolchain: stable
           cache-key: "v1-rust-ubsan"
-          cache-save-if: ${{ github.ref == 'refs/heads/master' }}
+          cache-bin: false
+          cache-on-failure: false
+          cache-save-if: ${{ github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
+          cache-targets: false
           rustflags: ""
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y llvm clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev liburing-dev llvm pkg-config
 
       # rustc has no UBSan, so only the C++ is instrumented. That is where the
       # value is anyway: RocksDB plus the hand-written extension in
@@ -70,29 +70,79 @@ jobs:
           CXXFLAGS: -fsanitize=undefined -fno-sanitize=vptr -fno-sanitize-recover=all -DROCKSDB_UBSAN_RUN -fno-omit-frame-pointer
           RUSTFLAGS: -Clinker=clang -Clink-arg=-fsanitize=undefined
           UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
-        run: cargo test --all --lib --bins --tests --jobs 2
+        run: |
+          cargo test --locked --workspace --no-default-features \
+            --features "$SANITIZER_FEATURES" --lib --bins --tests --jobs 2
 
-  tsan:
-    name: ThreadSanitizer
-    if: github.event.action != 'labeled'
-    runs-on: ubuntu-latest
+  asan:
+    name: AddressSanitizer and LeakSanitizer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
+          persist-credentials: false
           submodules: recursive
 
       - name: Install rust nightly
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          toolchain: nightly
+          components: rust-src
+          cache-key: "v1-rust-asan"
+          cache-bin: false
+          cache-on-failure: false
+          cache-save-if: ${{ github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
+          cache-targets: false
+          rustflags: ""
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev liburing-dev llvm pkg-config
+
+      - name: Run tests with AddressSanitizer and LeakSanitizer
+        env:
+          CC: clang
+          CXX: clang++
+          RUSTFLAGS: -Zsanitizer=address
+          RUSTDOCFLAGS: -Zsanitizer=address
+          CFLAGS: -fsanitize=address -fno-omit-frame-pointer
+          CXXFLAGS: -fsanitize=address -fno-omit-frame-pointer
+          ASAN_OPTIONS: detect_leaks=1:detect_stack_use_after_return=1:abort_on_error=1:print_stats=1
+        run: |
+          cargo +nightly test -Zbuild-std --target x86_64-unknown-linux-gnu \
+            --locked --workspace --no-default-features --features "$SANITIZER_FEATURES" \
+            --lib --bins --tests --jobs 2
+
+  tsan:
+    name: ThreadSanitizer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Install rust nightly
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
           toolchain: nightly
           components: rust-src
           cache-key: "v1-rust-tsan"
-          cache-save-if: ${{ github.ref == 'refs/heads/master' }}
+          cache-bin: false
+          cache-on-failure: false
+          cache-save-if: ${{ github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
+          cache-targets: false
           rustflags: ""
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y llvm clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev liburing-dev llvm pkg-config
 
       # This crate's public contract is largely a thread-safety claim: the
       # `Send`/`Sync` impls, the `MultiThreaded` column family map, and
@@ -100,8 +150,8 @@ jobs:
       # TSan is the only tool here that checks any of it.
       #
       # `-fPIC` and `FOLLY_SANITIZE_THREAD` match what RocksDB's own Makefile
-      # does under COMPILE_WITH_TSAN. jemalloc is off by default and must stay
-      # off, TSan does not work with it.
+      # does under COMPILE_WITH_TSAN. SANITIZER_FEATURES intentionally omits
+      # jemalloc because TSan does not work with it.
       #
       # Do not add `-fsanitize=thread` as a link arg. `-Zsanitizer=thread`
       # already links rustc's TSan runtime and clang's is a duplicate of it.
@@ -115,33 +165,42 @@ jobs:
           TSAN_OPTIONS: halt_on_error=1:suppressions=${{ github.workspace }}/.github/tsan-suppressions.txt
         run: |
           cargo +nightly test -Zbuild-std --target x86_64-unknown-linux-gnu \
-            --all --lib --bins --tests --jobs 2
+            --locked --workspace --no-default-features --features "$SANITIZER_FEATURES" \
+            --lib --bins --tests --jobs 2
 
   valgrind:
     name: Valgrind memcheck
-    # Nightly and on master, plus any pull request carrying the label.
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-sanitizers')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
+          persist-credentials: false
           submodules: recursive
 
       - name: Install rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
+          toolchain: stable
           cache-key: "v1-rust-valgrind"
-          cache-save-if: ${{ github.ref == 'refs/heads/master' }}
+          cache-bin: false
+          cache-on-failure: false
+          cache-save-if: ${{ github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
+          cache-targets: false
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y valgrind
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev liburing-dev pkg-config valgrind
 
       - name: Build test binaries
         run: |
           set -euo pipefail
-          cargo test --all --lib --bins --tests --features valgrind --no-run \
-            --message-format=json > cargo-test.json
+          cargo test --locked --workspace --no-default-features \
+            --features "$SANITIZER_FEATURES,valgrind" \
+            --lib --bins --tests --no-run --message-format=json \
+            > cargo-test.json
           grep -o '"executable":"[^"]*"' cargo-test.json \
             | cut -d'"' -f4 | sort -u > test-binaries.txt
           count=$(wc -l < test-binaries.txt)
@@ -153,7 +212,7 @@ jobs:
       # memory. MemorySanitizer would too, but it needs an instrumented libc++
       # underneath RocksDB, which is not a reasonable amount of work for this
       # crate. Leak checking is off because LeakSanitizer already covers it in
-      # the main workflow and is much faster at it.
+      # the AddressSanitizer job and is much faster at it.
       - name: Run test binaries under memcheck
         run: |
           set -uo pipefail

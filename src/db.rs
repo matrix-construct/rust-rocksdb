@@ -3376,9 +3376,9 @@ impl<T: ThreadMode, D: DBInner> DBCommon<T, D> {
     pub fn enable_manual_compaction(&self, enable: bool) {
         unsafe {
             if enable {
-                ffi::rocksdb_enable_manual_compaction(self.inner.inner())
+                ffi::rocksdb_enable_manual_compaction(self.inner.inner());
             } else {
-                ffi::rocksdb_disable_manual_compaction(self.inner.inner())
+                ffi::rocksdb_disable_manual_compaction(self.inner.inner());
             }
         }
     }

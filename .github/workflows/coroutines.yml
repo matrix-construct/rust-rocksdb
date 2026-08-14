@@ -1,13 +1,16 @@
 name: Coroutines build
 
+# Tuwunel does not enable coroutines. Keep this available for explicit
+# compatibility checks without spending CI resources on every push.
 on:
-  push:
-    branches: [master]
-  pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
@@ -17,6 +20,7 @@ jobs:
     name: ${{ matrix.build }} (coroutines)
     strategy:
       fail-fast: false
+      max-parallel: 2
       matrix:
         build: [Linux-x64, Linux-ARM]
         include:
@@ -25,7 +29,7 @@ jobs:
           - build: Linux-ARM
             os: ubuntu-24.04-arm
     # The host runner just hosts the container; the actual build happens
-    # inside `ubuntu:25.10` (see `container:` below). We pin a specific host
+    # inside `ubuntu:24.04` (see `container:` below). We pin a specific host
     # image rather than using `ubuntu-latest` so a GHA runner image rollover
     # doesn't silently change anything visible to the build. The container
     # image is multi-arch on Docker Hub, so the same `image:` works for
@@ -40,7 +44,7 @@ jobs:
       # for the cargo builds. The image still matters for the toolchain, and
       # the cache key below encodes it so changing this invalidates the folly
       # cache.
-      image: ubuntu:25.10
+      image: ubuntu:24.04
     # Folly's getdeps build can take 30-60+ minutes on a cold cache on
     # standard GHA runners (small core count, no parallelism flags). 90
     # minutes is a comfortable upper bound. With a warm cache the whole
@@ -58,8 +62,9 @@ jobs:
             ca-certificates curl git sudo
 
       - name: Checkout sources
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
+          persist-credentials: false
           submodules: recursive
 
       - name: Install build dependencies
@@ -72,17 +77,10 @@ jobs:
             zlib1g-dev libbz2-dev autoconf automake libtool \
             clang llvm
 
-      # Force gcc-14 instead of ubuntu:25.10's default gcc-15. folly's pinned
-      # libunwind commit (f081cf4...) was written pre-C23 and uses legacy
-      # K&R-style function declarations (`func()` meaning "unspecified
-      # arguments"). gcc-15 defaults to `-std=gnu23` for C, where `func()`
-      # means "no arguments", so calls like `func(s)` in libunwind's tests
-      # become hard errors. gcc-14 still defaults to `-std=gnu17`, which
-      # preserves the legacy semantic.
-      #
-      # gcc-14 and gcc-15 share the same libstdc++ ABI, so the subsequent
-      # `cargo build` (which uses gcc-14 here too via cc/c++ alternatives)
-      # links cleanly against folly's output.
+      # Use gcc-14 instead of ubuntu:24.04's default gcc-13 so both
+      # architectures build with the same explicit compiler version. gcc-14
+      # also retains the pre-C23 behavior required by folly's pinned
+      # libunwind commit.
       - name: Switch default compiler to gcc-14
         run: |
           update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100
@@ -93,42 +91,34 @@ jobs:
           g++ --version
 
       - name: Install rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
+          toolchain: stable
           cache-key: "v1-rust-coroutines"
-          # Populate the cache from master runs only, not from PR runs.
-          cache-save-if: ${{ github.ref == 'refs/heads/master' }}
+          cache-bin: false
+          cache-on-failure: false
+          cache-save-if: true
+          cache-targets: false
 
       # The folly build's correctness depends on three independent inputs:
       #   1. The folly commit (pinned by RocksDB's folly.mk:FOLLY_COMMIT_HASH).
-      #   2. The exact container image (glibc + libstdc++ + apt package versions).
+      #   2. The container release (glibc + libstdc++ + apt package versions).
       #   3. The CPU arch (x86_64 vs aarch64).
-      # All three are encoded in the cache key. The `-v3` suffix lets us bump
+      # All three are encoded in the cache key. The final suffix lets us bump
       # the cache manually if the build script changes in a way that
-      # invalidates prior caches (v2 was the previous ubuntu-24.04-host build).
-      - name: Determine folly commit hash
-        id: folly-hash
-        run: |
-          HASH=$(grep -E '^FOLLY_COMMIT_HASH = ' \
-                       librocksdb-sys/rocksdb/folly.mk \
-                  | sed -E 's/^FOLLY_COMMIT_HASH = //')
-          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
-
-      - name: Cache folly install
+      # invalidates prior caches.
+      - name: Restore folly install
         id: cache-folly
-        uses: actions/cache@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          # `build_folly.sh` uses --scratch-path so install artifacts live
-          # inside the workspace at a predictable location. Cache both that
-          # and the folly source checkout so a warm hit avoids both the
-          # clone and the build. Files written by the build:
-          #   librocksdb-sys/folly-build/installed/{folly,boost,...}-*/
-          #   librocksdb-sys/folly-build/{downloads,build,extracted,shipit}/
-          #   librocksdb-sys/rocksdb/third-party/folly/   (source + patches)
+          # Cache only the installed artifacts needed by the cargo build. The
+          # source checkout, downloads, and intermediate object trees are not
+          # needed on a warm hit and can exceed the repository cache budget.
           path: |
-            librocksdb-sys/folly-build
-            librocksdb-sys/rocksdb/third-party/folly
-          key: folly-${{ runner.os }}-${{ runner.arch }}-ubuntu-25.10-${{ steps.folly-hash.outputs.hash }}-v3
+            librocksdb-sys/folly-build/installed
+            librocksdb-sys/folly-build/liburing-2.15
+            librocksdb-sys/folly-build/liburing-prefix.txt
+          key: folly-${{ runner.arch }}-u24-${{ hashFiles('scripts/build_folly.sh', 'librocksdb-sys/rocksdb/folly.mk', 'librocksdb-sys/rocksdb/build_tools/getdeps_fallback_mirror.py') }}-v1
 
       - name: Build folly
         if: steps.cache-folly.outputs.cache-hit != 'true'
@@ -142,13 +132,17 @@ jobs:
           # system one here so RocksDB's io_uring code and libfolly.a agree
           # on the headers and the runtime library. The file is absent when
           # the system liburing was already good enough.
+          append_env() {
+            printf '%s\n' "$1" >> "$GITHUB_ENV"
+          }
+
           LIBURING_PREFIX_FILE="$PWD/librocksdb-sys/folly-build/liburing-prefix.txt"
           if [ -f "$LIBURING_PREFIX_FILE" ]; then
             LIBURING_PREFIX=$(cat "$LIBURING_PREFIX_FILE")
             echo "Using liburing from $LIBURING_PREFIX"
-            echo "PKG_CONFIG_PATH=$LIBURING_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
-            echo "CPATH=$LIBURING_PREFIX/include${CPATH:+:$CPATH}" >> "$GITHUB_ENV"
-            echo "LIBRARY_PATH=$LIBURING_PREFIX/lib${LIBRARY_PATH:+:$LIBRARY_PATH}" >> "$GITHUB_ENV"
+            append_env "PKG_CONFIG_PATH=$LIBURING_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+            append_env "CPATH=$LIBURING_PREFIX/include${CPATH:+:$CPATH}"
+            append_env "LIBRARY_PATH=$LIBURING_PREFIX/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
           fi
 
           INSTALL_ROOT="$PWD/librocksdb-sys/folly-build/installed"
@@ -158,7 +152,7 @@ jobs:
             ls -la librocksdb-sys/folly-build/ || true
             exit 1
           fi
-          echo "ROCKSDB_FOLLY_INSTALL_PATH=$INSTALL_ROOT" >> "$GITHUB_ENV"
+          append_env "ROCKSDB_FOLLY_INSTALL_PATH=$INSTALL_ROOT"
 
           # folly's getdeps produces libglog and libgflags as shared libs only
           # (no static archives). librocksdb-sys/build.rs links them dynamically.
@@ -188,9 +182,9 @@ jobs:
           if [ -n "${LIBURING_PREFIX:-}" ]; then
             RUNTIME_LIBDIRS="$RUNTIME_LIBDIRS:$LIBURING_PREFIX/lib"
           fi
-          echo "LD_LIBRARY_PATH=$RUNTIME_LIBDIRS${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+          append_env "LD_LIBRARY_PATH=$RUNTIME_LIBDIRS${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
-      - uses: taiki-e/install-action@nextest
+      - uses: taiki-e/install-action@68250fb3d551d72befef105162372ebb3e8016e0 # nextest
 
       - name: cargo build --features coroutines,io-uring
         run: cargo build --release --features coroutines,io-uring
@@ -200,3 +194,14 @@ jobs:
 
       - name: Run doctests with coroutines feature
         run: cargo test --doc --release --features coroutines,io-uring
+
+      - name: Save folly install
+        if: >-
+          steps.cache-folly.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            librocksdb-sys/folly-build/installed
+            librocksdb-sys/folly-build/liburing-2.15
+            librocksdb-sys/folly-build/liburing-prefix.txt
+          key: folly-${{ runner.arch }}-u24-${{ hashFiles('scripts/build_folly.sh', 'librocksdb-sys/rocksdb/folly.mk', 'librocksdb-sys/rocksdb/build_tools/getdeps_fallback_mirror.py') }}-v1

@@ -1,6 +1,6 @@
 # rust-rocksdb
 
-[![RocksDB build](https://github.com/zaidoon1/rust-rocksdb/actions/workflows/rust.yml/badge.svg?branch=master)](https://github.com/zaidoon1/rust-rocksdb/actions/workflows/rust.yml)
+[![RocksDB build](https://github.com/matrix-construct/rust-rocksdb/actions/workflows/rust.yml/badge.svg?branch=tuwunel-changes)](https://github.com/matrix-construct/rust-rocksdb/actions/workflows/rust.yml)
 [![crates.io](https://img.shields.io/crates/v/rust-rocksdb.svg)](https://crates.io/crates/rust-rocksdb)
 [![documentation](https://docs.rs/rust-rocksdb/badge.svg)](https://docs.rs/rust-rocksdb)
 [![license](https://img.shields.io/crates/l/rust-rocksdb.svg)](https://github.com/zaidoon1/rust-rocksdb/blob/master/LICENSE)

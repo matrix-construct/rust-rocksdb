@@ -2,27 +2,37 @@ name: RocksDB CI
 
 on:
   push:
-    branches: [master]
-  pull_request:
+    branches:
+      - "**"
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
+  TUWUNEL_FEATURES: bindgen-runtime,bzip2,io-uring,jemalloc,lto,lz4,multi-threaded-cf,serde1,zstd,zstd-static-linking-only
 
 jobs:
   style:
     name: Rustfmt
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER_X64 || 'het' }}
+    timeout-minutes: 10
+
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
       - name: Install rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
+          toolchain: stable
           components: rustfmt
           cache: false
           rustflags: ""
@@ -30,503 +40,100 @@ jobs:
       - name: Run rustfmt
         run: cargo fmt --all -- --check
 
-  doc-check:
-    name: Rustdoc-check
-    runs-on: ubuntu-latest
+  consumer:
+    name: Tuwunel consumer (${{ matrix.arch }})
+    needs: style
+    runs-on: >-
+      ${{ matrix.arch == 'arm64'
+          && (vars.CI_RUNNER_ARM64 || 'aws')
+          || (vars.CI_RUNNER_X64 || 'het') }}
+    container: ubuntu:26.04
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: ${{ matrix.cargo_jobs }}
+      CC: clang
+      CXX: clang++
+
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - arch: x64
+            cargo_jobs: 8
+            expected_uname: x86_64
+          - arch: arm64
+            cargo_jobs: 4
+            expected_uname: aarch64
+
     steps:
+      - name: Bootstrap container
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential ca-certificates clang curl git libclang-dev \
+            liburing-dev llvm-dev pkg-config zstd
+
       - name: Checkout sources
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
+          persist-credentials: false
           submodules: recursive
 
-      - name: Install rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          components: rust-docs
-          cache-save-if: ${{ github.ref == 'refs/heads/master' }}
+      - name: Verify runner architecture
+        run: test "$(uname -m)" = "${{ matrix.expected_uname }}"
 
-      - name: Run cargo rustdoc
-        run: cargo rustdoc -- -D warnings
-
-  doctest: # doctest are no supported in cargo nextest yet. https://github.com/nextest-rs/nextest/issues/16
-    name: Doctests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v5
-        with:
-          submodules: recursive
+      - name: Verify runner dependencies
+        run: |
+          command -v clang
+          test -e "$(llvm-config --libdir)/libclang.so"
+          test -e "$(llvm-config --libdir)/LLVMgold.so"
+          pkg-config --exists liburing
 
       - name: Install rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
-          cache-save-if: ${{ github.ref == 'refs/heads/master' }}
+          toolchain: stable
+          components: clippy
+          cache-key: v1-tuwunel-${{ matrix.arch }}
+          cache-bin: false
+          cache-on-failure: false
+          cache-save-if: ${{ github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
+          cache-targets: false
+          rustflags: "-D warnings -Clinker=clang -Clink-arg=-flto -Ctarget-cpu=native"
+
+      - name: Run Clippy
+        if: matrix.arch == 'x64'
+        run: |
+          cargo clippy --locked --no-default-features \
+            --features "$TUWUNEL_FEATURES" --all-targets -- -D warnings
+
+      - name: Build documentation
+        if: matrix.arch == 'x64'
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: |
+          cargo doc --locked --no-deps --no-default-features \
+            --features "$TUWUNEL_FEATURES"
+
+      - name: Run tests
+        run: |
+          cargo test --locked --release --no-default-features \
+            --features "$TUWUNEL_FEATURES" --lib --bins --tests \
+            --jobs "${{ matrix.cargo_jobs }}"
 
       - name: Run doctests
-        run: cargo test --doc
-
-  clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v5
-        with:
-          submodules: recursive
-
-      - name: Install rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          components: clippy
-          cache-save-if: ${{ github.ref == 'refs/heads/master' }}
-
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y liburing-dev pkg-config
-
-      - name: Set PKG_CONFIG_PATH
-        run: echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig" >> $GITHUB_ENV
-
-      - name: Run clippy
-        run: |
-          cargo clippy --all-targets --features \
-            "jemalloc \
-            io-uring \
-            valgrind \
-            mt_static \
-            rtti \
-            multi-threaded-cf \
-            malloc-usable-size \
-            zstd-static-linking-only \
-            serde1" \
-            -- -D warnings
-
-  # `rust-toolchain.toml` tracks stable, so nothing else here builds on the
-  # MSRV. This job is what makes `rust-version` in Cargo.toml a real claim
-  # rather than a number in a manifest. It reads that field instead of
-  # repeating it, so the two cannot drift.
-  #
-  # `cargo check` on the default features is deliberate. The question is
-  # whether the declared MSRV still compiles the crate, not whether the suite
-  # passes on it a second time. The explicit `+toolchain` is required because
-  # `rust-toolchain.toml` would otherwise win over the rustup default.
-  msrv:
-    name: MSRV
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v5
-        with:
-          submodules: recursive
-
-      - name: Read the declared MSRV
-        id: msrv
-        run: |
-          set -euo pipefail
-          v=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' Cargo.toml)
-          if [ -z "$v" ]; then
-            echo "::error::could not read rust-version from Cargo.toml"
-            exit 1
-          fi
-          echo "declared MSRV: $v"
-          echo "version=$v" >> "$GITHUB_OUTPUT"
-
-      - name: Install rust ${{ steps.msrv.outputs.version }}
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: ${{ steps.msrv.outputs.version }}
-          cache-key: "v1-rust-msrv"
-          cache-save-if: ${{ github.ref == 'refs/heads/master' }}
-
-      - name: Check on the declared MSRV
-        run: cargo +${{ steps.msrv.outputs.version }} check --all-targets
-
-  # Every other job builds for the target's baseline CPU, where
-  # x86_64-unknown-linux-gnu reports only fxsr, sse and sse2. `build.rs` turns
-  # target features into `-march`/`-mcpu` and into RocksDB and snappy defines,
-  # so a tuned build takes entirely different code paths. A snappy build break
-  # under `-Ctarget-cpu` shipped in 0.51.0 precisely because nothing here ever
-  # left the baseline. `native` rather than a fixed level so the job keeps
-  # matching whatever the runners actually are.
-  build-tuned-cpu:
-    name: Tuned CPU build - ${{ matrix.build }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        build: [Linux, Linux-ARM]
-        include:
-          - build: Linux
-            os: ubuntu-latest
-          - build: Linux-ARM
-            os: ubuntu-24.04-arm
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v5
-        with:
-          submodules: recursive
-
-      - name: Install rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          # Nothing this job caches may contain machine code. `native` bakes
-          # whatever the saving runner supported into every host artifact,
-          # including the dependency rlibs that get linked into `build.rs`, and
-          # the hosted fleet spans CPU generations, so restoring those onto a
-          # narrower machine kills the build script with SIGILL. That rules out
-          # `target` and `~/.cargo/bin`, leaving the registry and git checkouts,
-          # which are only sources. Costs about two minutes, 8m09s cold against
-          # 6m05s warm, because the cache never covered the RocksDB build in the
-          # first place: `librocksdb-sys` is a workspace member, and it was 5m17s
-          # of that warm run.
-          cache-key: "v2-rust-tuned-cpu"
-          cache-targets: false
-          cache-bin: false
-          cache-save-if: ${{ github.ref == 'refs/heads/master' }}
-          rustflags: ""
-
-      - uses: taiki-e/install-action@nextest
-
-      - name: Run tests with -Ctarget-cpu=native
+        if: matrix.arch == 'x64'
         env:
-          RUSTFLAGS: -Ctarget-cpu=native
-        run: cargo nextest run --all
-
-  # Nothing else builds without the default features, so a compression backend
-  # that only compiles because a sibling feature happens to pull in its headers
-  # goes unnoticed. Check builds only; the point is that each combination
-  # compiles and links, which the default matrix already covers behaviourally.
-  build-feature-matrix:
-    name: Feature build - ${{ matrix.name }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: no-default-features
-            features: "--no-default-features"
-          - name: snappy only
-            features: "--no-default-features --features snappy"
-          - name: lz4 only
-            features: "--no-default-features --features lz4"
-          - name: zstd only
-            features: "--no-default-features --features zstd"
-          - name: zlib only
-            features: "--no-default-features --features zlib"
-          - name: bzip2 only
-            features: "--no-default-features --features bzip2"
-          - name: serde1 + multi-threaded-cf
-            features: "--features serde1,multi-threaded-cf"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v5
-        with:
-          submodules: recursive
-
-      - name: Install rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          cache-key: "v1-rust-features"
-          cache-save-if: ${{ github.ref == 'refs/heads/master' }}
-
-      # `--no-default-features` drops `bindgen-runtime`, and with neither
-      # bindgen feature `clang-sys` stops loading libclang at runtime and
-      # links it instead, which needs `llvm-config` from llvm-dev to locate
-      # `libclang.so` from libclang-dev. Neither is on the runner by default.
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y llvm-dev libclang-dev clang
-
-      - name: Check ${{ matrix.name }}
-        run: cargo check --all-targets ${{ matrix.features }}
-
-  # What we publish is not what we test. Every other job builds from the git
-  # checkout; users build from a tarball assembled by the `exclude` list in
-  # `librocksdb-sys/Cargo.toml`. Trimming one glob too far breaks every
-  # downstream build and cannot be fixed without publishing a new version, so
-  # verify the tarball itself.
-  package:
-    name: Package verify
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v5
-        with:
-          submodules: recursive
-
-      - name: Install rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          cache-key: "v1-rust-package"
-          cache-save-if: ${{ github.ref == 'refs/heads/master' }}
-
-      # No `--no-verify`: the point of this job is that cargo unpacks the
-      # tarball into `target/package` and compiles RocksDB from it, which is
-      # what proves the exclude list did not drop a header.
-      - name: Package and build from the tarball
-        run: cargo package -p rust-librocksdb-sys
-
-      # An exclude list silently admits whatever upstream adds next, so assert
-      # the result instead of trusting the patterns. RocksDB keeps tests in
-      # `*_test.cc` beside the sources, which is how 222 test files, the Java
-      # bindings and db_stress_tool were being published in the first place.
-      #
-      # This job runs with `submodules: recursive`, which is the point: snappy's
-      # googletest and benchmark submodules are absent from a shallow clone, so
-      # a local `cargo package` will not show them.
-      - name: Assert the tarball stays trimmed
+          RUSTDOCFLAGS: >-
+            -D warnings -Clinker=clang -Clink-arg=-flto -Ctarget-cpu=native
         run: |
-          set -euo pipefail
-          cargo package --list -p rust-librocksdb-sys > /tmp/pkg.txt
-          total=$(wc -l < /tmp/pkg.txt)
-          echo "packaged files: $total"
+          cargo test --locked --release --no-default-features \
+            --features "$TUWUNEL_FEATURES" --doc
 
-          fail=0
-          for pat in '_test\.cc$' '^rocksdb/java/' '^rocksdb/db_stress_tool/' \
-                     '^rocksdb/microbench/' '^rocksdb/fuzz/' '^rocksdb/buckifier/' \
-                     '^snappy/third_party/'; do
-            n=$(grep -cE "$pat" /tmp/pkg.txt || true)
-            if [ "$n" -ne 0 ]; then
-              echo "::error::$n packaged files match $pat, which nothing compiles"
-              fail=1
-            fi
-          done
-
-          # Ceiling with room for ordinary upstream growth. A jump past this
-          # means a new directory started riding along; extend the exclude list
-          # rather than raising the number.
-          if [ "$total" -gt 1200 ]; then
-            echo "::error::$total packaged files exceeds the 1200 ceiling"
-            fail=1
+      - name: Clean self-hosted build artifacts
+        if: always()
+        run: |
+          if command -v cargo >/dev/null && test -f Cargo.toml; then
+            cargo clean
           fi
-
-          # The other direction: these are load-bearing and easy to strip by
-          # accident. gtest is on the include path and three test_util files
-          # are compiled.
-          for pat in '^rocksdb/third-party/gtest-1.8.1/fused-src/' '^rocksdb/test_util/' \
-                     '^rocksdb/tools/dump/db_dump_tool\.cc$'; do
-            if ! grep -qE "$pat" /tmp/pkg.txt; then
-              echo "::error::nothing matches $pat, but the build needs it"
-              fail=1
-            fi
-          done
-
-          exit $fail
-
-  test:
-    name: ${{ matrix.build }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        build: [Linux, Linux-ARM, macOS, Windows]
-        include:
-          - build: Linux
-            os: ubuntu-latest
-          - build: Linux-ARM
-            os: ubuntu-24.04-arm
-          - build: macOS
-            os: macos-latest
-          - build: Windows
-            os: windows-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v5
-        with:
-          submodules: recursive
-
-      - name: Install rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          cache-save-if: ${{ github.ref == 'refs/heads/master' }}
-
-      - uses: taiki-e/install-action@nextest
-
-      - name: Remove msys64 # Workaround to resolve link error with C:\msys64\mingw64\bin\libclang.dll
-        if: runner.os == 'Windows'
-        run: Remove-Item -LiteralPath "C:\msys64\" -Force -Recurse
-
-      - name: Install dependencies
-        if: runner.os == 'Windows'
-        run: choco install llvm -y
-
-      - name: Mark working directory as read-only
-        if: runner.os == 'Linux'
-        run: |
-          mkdir -p target
-          touch Cargo.lock
-          chmod -R a-w .
-          chmod -R a+w target Cargo.lock
-
-      - name: Run rocksdb tests
-        run: cargo nextest run --all
-
-      - name: Mark working directory as writable
-        if: runner.os == 'Linux'
-        run: chmod -R a+w .
-
-  test-multi-threaded-cf:
-    name: ${{ matrix.build }} (multi-threaded-cf)
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        build: [Linux, Linux-ARM, macOS, Windows]
-        include:
-          - build: Linux
-            os: ubuntu-latest
-          - build: Linux-ARM
-            os: ubuntu-24.04-arm
-          - build: macOS
-            os: macos-latest
-          - build: Windows
-            os: windows-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v5
-        with:
-          submodules: recursive
-
-      - name: Install rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          cache-key: "v1-rust-multi-threaded-cf"
-          cache-save-if: ${{ github.ref == 'refs/heads/master' }}
-
-      - uses: taiki-e/install-action@nextest
-
-      - name: Remove msys64 # Workaround to resolve link error with C:\msys64\mingw64\bin\libclang.dll
-        if: runner.os == 'Windows'
-        run: Remove-Item -LiteralPath "C:\msys64\" -Force -Recurse
-
-      - name: Install dependencies
-        if: runner.os == 'Windows'
-        run: choco install llvm -y
-
-      - name: Mark working directory as read-only
-        if: runner.os == 'Linux'
-        run: |
-          mkdir -p target
-          touch Cargo.lock
-          chmod -R a-w .
-          chmod -R a+w target Cargo.lock
-
-      - name: Run rocksdb tests (multi-threaded-cf)
-        run: cargo nextest run --all --features multi-threaded-cf
-
-      - name: Mark working directory as writable
-        if: runner.os == 'Linux'
-        run: chmod -R a+w .
-
-  test-jemalloc:
-    name: Test with jemalloc - ${{ matrix.build }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        build: [Linux, Linux-ARM, macOS]
-        include:
-          - build: Linux
-            os: ubuntu-latest
-          - build: Linux-ARM
-            os: ubuntu-24.04-arm
-          - build: macOS
-            os: macos-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v5
-        with:
-          submodules: recursive
-
-      - name: Install rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          cache-key: "v1-rust-jemalloc"
-          cache-save-if: ${{ github.ref == 'refs/heads/master' }}
-
-      - uses: taiki-e/install-action@nextest
-
-      - name: Mark working directory as read-only
-        if: runner.os == 'Linux'
-        run: |
-          mkdir -p target
-          touch Cargo.lock
-          chmod -R a-w .
-          chmod -R a+w target Cargo.lock
-
-      - name: Run rocksdb tests with jemalloc
-        run: cargo nextest run --all --features jemalloc
-
-      - name: Mark working directory as writable
-        if: runner.os == 'Linux'
-        run: chmod -R a+w .
-
-  # Everything else runs the debug profile. Release turns on optimization and
-  # turns off debug_assertions, which changes both what the optimizer is
-  # allowed to assume about the FFI boundary and which assertions run.
-  test-release:
-    name: Test release profile
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v5
-        with:
-          submodules: recursive
-
-      - name: Install rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          cache-key: "v1-rust-release"
-          cache-save-if: ${{ github.ref == 'refs/heads/master' }}
-
-      - uses: taiki-e/install-action@nextest
-
-      - name: Run rocksdb tests (release)
-        run: cargo nextest run --all --release
-
-  test-sanitizers:
-    name: Test with Address/LeakSanitizer
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v5
-        with:
-          submodules: recursive
-
-      - name: Install rust nightly
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: nightly
-          components: rust-src
-          cache-key: "v1-rust-asan"
-          cache-save-if: ${{ github.ref == 'refs/heads/master' }}
-          rustflags: ""
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y llvm clang
-
-      # `--lib --bins` skipped `tests/`, which is where nearly all of the FFI
-      # coverage lives, so the job was running almost none of the code it was
-      # meant to check. CFLAGS/CXXFLAGS carry the sanitizer into the `cc`
-      # build, without which an overflow performed by uninstrumented C++ has no
-      # instrumented load to trip on. `build.rs` looks for "sanitize" in those
-      # vars and keeps its dev-profile size optimizations out of the way.
-      #
-      # Do not add `-fsanitize=address` as a link arg. `-Zsanitizer=address`
-      # already links rustc's ASan runtime, and adding clang's on top of it
-      # gives duplicate symbol definitions for the whole runtime.
-      #
-      # `--jobs 2` because linking these binaries takes several GB each and a
-      # runner-wide parallel link gets the linker OOM-killed.
-      - name: Run tests with Address/LeakSanitizer
-        env:
-          CC: clang
-          CXX: clang++
-          RUSTFLAGS: -Zsanitizer=address
-          RUSTDOCFLAGS: -Zsanitizer=address
-          CFLAGS: -fsanitize=address -fno-omit-frame-pointer
-          CXXFLAGS: -fsanitize=address -fno-omit-frame-pointer
-          ASAN_OPTIONS: detect_leaks=1:detect_stack_use_after_return=1:abort_on_error=1:print_stats=1
-        run: |
-          cargo +nightly test -Zbuild-std --target x86_64-unknown-linux-gnu \
-            --all --lib --bins --tests --jobs 2

@@ -651,10 +651,10 @@ mod vendor {
     /// `-mcpu=` so the C++ side benefits from the same CPU baseline.
     fn apply_target_cpu(cfg: &mut cc::Build, target: &Target) {
         // Explicit ROCKSDB_MARCH override, independent of -Ctarget-cpu.
-        if let Ok(march) = env::var("ROCKSDB_MARCH") {
-            if !march.is_empty() {
-                cfg.flag_if_supported(format!("-march={march}"));
-            }
+        if let Ok(march) = env::var("ROCKSDB_MARCH")
+            && !march.is_empty()
+        {
+            cfg.flag_if_supported(format!("-march={march}"));
         }
         let Some(cpu) = &target.rust_target_cpu else {
             return;
@@ -934,7 +934,11 @@ mod vendor {
                 }
                 _cfg.define("ROCKSDB_IOURING_PRESENT", Some("1"));
 
-                let mode = if cfg!(feature = "io-uring-static") { "=static" } else { "" };
+                let mode = if cfg!(feature = "io-uring-static") {
+                    "=static"
+                } else {
+                    ""
+                };
                 if cfg!(feature = "io-uring-static") {
                     // centos uses its /usr/lib64 search path but liburing.a is installed
                     // by dnf oddly in /usr/lib unlike other installed archives.

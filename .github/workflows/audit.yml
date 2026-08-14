@@ -1,15 +1,11 @@
 name: Security Audit
 
-# Advisories land against dependency versions that are already pinned, so this
-# has to run on a timer as well as on change. The pull request trigger is what
-# used to be a second, separate audit job in rust.yml using a different action.
+# Audit the committed lockfile whenever a branch changes. Manual dispatch is
+# available when an advisory needs checking without a source change.
 on:
   push:
     branches:
-      - master
-  pull_request:
-  schedule:
-    - cron: "0 2 * * *" # run at 2 AM UTC
+      - "**"
   workflow_dispatch:
 
 permissions:
@@ -17,21 +13,18 @@ permissions:
 
 jobs:
   security-audit:
-    # Branch protection requires this exact check name. Renaming it silently
-    # blocks every pull request, because a required check that never reports
-    # never passes.
     name: Security audit
-    permissions:
-      checks: write # for the action to create a check
-      contents: read # for actions/checkout to fetch code
-      issues: write # for the action to file advisories it finds
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
       - name: Install rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
+          toolchain: stable
           cache: false
           rustflags: ""
 
@@ -40,6 +33,6 @@ jobs:
       # version, so the audit would cover versions nobody builds and would miss
       # a vulnerable pin that is actually in the lockfile.
       - name: Audit check
-        uses: actions-rust-lang/audit@v1
+        uses: actions-rust-lang/audit@72c09e02f132669d52284a3323acdb503cfc1a24 # v1.2.7
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          createIssues: false

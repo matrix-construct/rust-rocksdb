@@ -20,12 +20,12 @@
 // Ensure the libraries are linked in, despite it not being used directly
 #[cfg(feature = "bzip2")]
 extern crate bzip2_sys;
+#[cfg(feature = "jemalloc")]
+extern crate jevmalloc_sys;
 #[cfg(feature = "zlib")]
 extern crate libz_sys;
 #[cfg(feature = "lz4")]
 extern crate lz4_sys;
-#[cfg(feature = "jemalloc")]
-extern crate jevmalloc_sys;
 #[cfg(feature = "zstd")]
 extern crate zstd_sys;
 
